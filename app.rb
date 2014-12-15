@@ -65,7 +65,10 @@ helpers do
       pull_request['base']['repo']['full_name'],
       pull_request['head']['sha'],
       'pending',
-      {'description' => 'RobinCI: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLOOS_ONES.to_s + ') has yet to be reached.'}
+      {
+        'description' => 'RobinCI: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLOOS_ONES.to_s + ') has yet to be reached.',
+        'context' => 'robinpowered/robin-ci'
+      }
     )
     return 200
   end
@@ -96,7 +99,10 @@ helpers do
           pull_request['base']['repo']['full_name'],
           pull_request['head']['sha'],
           'success',
-          {'description' => 'RobinCI: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLOOS_ONES.to_s + ') has been reached!'}
+          {
+            'description' => 'RobinCI: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLOOS_ONES.to_s + ') has been reached!',
+            'context' => 'robinpowered/robin-ci'
+          }
         )
         # Delete the lingering store
         @redis.del(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s)
