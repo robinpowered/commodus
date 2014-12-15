@@ -4,22 +4,17 @@ require 'octokit'
 require 'redis'
 
 # Constants
-ACCESS_TOKEN = ENV['DAS_TOKEN']
+ACCESS_TOKEN = ENV['ACCESS_TOKEN']
 REDIS_URI = ENV["REDISTOGO_URL"] || 'redis://localhost:6379'
 SECRET_TOKEN = ENV['SECRET_TOKEN']
-NEEDED_PLOOS_ONES = 2
-PLOOS_ONE_COMMENT = 'LGTM :+1:'
+NEEDED_PLUS_ONES = 2
+PLUS_ONE_COMMENT = 'LGTM :+1:'
 
 # Setup our clients
 before do
   uri = URI.parse(REDIS_URI) 
   @redis = Redis.new(:host => uri.host, :port => uri.port, :password => uri.password)
   @client ||= Octokit::Client.new(:access_token => ACCESS_TOKEN)
-end
-
-# Main index page
-get '/' do
-  "Welcome to the Robin CI server!"
 end
 
 # Webhook endpoint
@@ -36,7 +31,7 @@ post '/hooks' do
 
   # If $required_plus_ones has been specified, change the default
   if params['required_plus_ones']
-    NEEDED_PLOOS_ONES ||= params['required_plus_ones']
+    NEEDED_PLUS_ONES ||= params['required_plus_ones']
   end
 
   # A webhook has been received from Github
@@ -66,8 +61,8 @@ helpers do
       pull_request['head']['sha'],
       'pending',
       {
-        'description' => 'RobinCI: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLOOS_ONES.to_s + ') has yet to be reached.',
-        'context' => 'robinpowered/robin-ci'
+        'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
+        'context' => 'robinpowered/commodus'
       }
     )
     return 200
@@ -87,7 +82,7 @@ helpers do
 
     if plus_ones
       # The :+1: threshold still hasn't been reached, store the incremented value
-      if plus_ones < NEEDED_PLOOS_ONES
+      if plus_ones < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
         @redis.set(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s, plus_ones)
         return 200
@@ -100,8 +95,8 @@ helpers do
           pull_request['head']['sha'],
           'success',
           {
-            'description' => 'RobinCI: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLOOS_ONES.to_s + ') has been reached!',
-            'context' => 'robinpowered/robin-ci'
+            'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
+            'context' => 'robinpowered/commodus'
           }
         )
         # Delete the lingering store
@@ -113,7 +108,7 @@ helpers do
 
   # Simply parse the comment for plus ones
   def parse_comment_body(comment_body)
-    if comment_body.include? PLOOS_ONE_COMMENT
+    if comment_body.include? PLUS_ONE_COMMENT
       return 1
     end
     return 0
