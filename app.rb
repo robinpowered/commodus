@@ -25,7 +25,7 @@ post '/hooks' do
   payload_body = request.body.read
 
   # Verify our signature is coming from Github
-  #verify_signature(payload_body)
+  verify_signature(payload_body)
 
   @payload = JSON.parse(payload_body)
 
