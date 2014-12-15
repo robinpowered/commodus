@@ -25,7 +25,7 @@ post '/hooks' do
   payload_body = request.body.read
 
   # Verify our signature is coming from Github
-  verify_signature(payload_body)
+  #verify_signature(payload_body)
 
   @payload = JSON.parse(payload_body)
 
@@ -61,7 +61,7 @@ helpers do
       pull_request['head']['sha'],
       'pending',
       {
-        'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
+        'description' => 'Commodus: Required plus ones (0/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
         'context' => 'robinpowered/commodus'
       }
     )
@@ -81,14 +81,22 @@ helpers do
     plus_ones = plus_ones.to_i + 1
 
     if plus_ones
+      pull_request = @client.pull_request(issue_comment_payload['repository']['full_name'], issue_comment_payload['issue']['number'])
       # The :+1: threshold still hasn't been reached, store the incremented value
       if plus_ones < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
         @redis.set(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s, plus_ones)
+        @client.create_status(
+          pull_request['base']['repo']['full_name'],
+          pull_request['head']['sha'],
+          'pending',
+          {
+            'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
+            'context' => 'robinpowered/commodus'
+          }
+        )
         return 200
       else
-        # Threshold has been reached
-        pull_request = @client.pull_request(issue_comment_payload['repository']['full_name'], issue_comment_payload['issue']['number'])
         # Set commit status to sucessful
         @client.create_status(
           pull_request['base']['repo']['full_name'],
