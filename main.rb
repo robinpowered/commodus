@@ -25,6 +25,10 @@ post '/hooks' do
 
   @payload = JSON.parse(payload_body)
 
+  if params['required_plus_ones']
+    NEEDED_PLOOS_ONES ||= params['required_plus_ones']
+  end
+
   case request.env['HTTP_X_GITHUB_EVENT']
   when "pull_request"
     if @payload["action"] == "opened"
