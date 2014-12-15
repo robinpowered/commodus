@@ -14,12 +14,16 @@ before do
   @client ||= Octokit::Client.new(:access_token => ACCESS_TOKEN)
 end
 
-get '/hi' do
-  "Bonjourno"
+get '/' do
+  "Welcome to the Robin CI server!"
 end
 
 post '/hooks' do
-  @payload = JSON.parse(request.body.read)
+  request.body.rewind
+  payload_body = request.body.read
+  verify_signature(payload_body)
+
+  @payload = JSON.parse(payload_body)
 
   case request.env['HTTP_X_GITHUB_EVENT']
   when "pull_request"
@@ -79,5 +83,9 @@ helpers do
       return 1
     end
     return 0
+  end
+  def verify_signature(payload_body)
+    signature = 'sha1=' + OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha1'), ENV['SECRET_TOKEN'], payload_body)
+    return halt 500, "Signatures didn't match!" unless Rack::Utils.secure_compare(signature, request.env['HTTP_X_HUB_SIGNATURE'])
   end
 end
