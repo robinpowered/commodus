@@ -78,13 +78,13 @@ helpers do
   # An issue comment has been reported
   def process_created_issue_comment(issue_comment_payload)
     plus_ones = @redis.get(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s)
-    plus_ones = plus_ones.to_i + 1
 
-    if plus_ones
+    if !plus_ones.nil?
       pull_request = @client.pull_request(issue_comment_payload['repository']['full_name'], issue_comment_payload['issue']['number'])
       # The :+1: threshold still hasn't been reached, store the incremented value
-      if plus_ones < NEEDED_PLUS_ONES
+      if plus_ones.to_i + 1 < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
+        plus_ones = plus_ones.to_i + plus_ones_to_add
         @redis.set(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s, plus_ones)
         @client.create_status(
           pull_request['base']['repo']['full_name'],
