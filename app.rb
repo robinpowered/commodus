@@ -103,7 +103,7 @@ helpers do
           pull_request['head']['sha'],
           'success',
           {
-            'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
+            'description' => 'Commodus: Required plus ones (' + NEEDED_PLUS_ONES.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
             'context' => 'robinpowered/commodus'
           }
         )
