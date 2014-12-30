@@ -98,7 +98,7 @@ helpers do
     # Ensure that a key actually exists
     if !plus_ones.nil?
       # The :+1: threshold still hasn't been reached, store the incremented value
-      if plus_ones.to_i + 1 < NEEDED_PLUS_ONES
+      if plus_ones.to_i < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
         plus_ones = plus_ones.to_i + plus_ones_to_add
 
