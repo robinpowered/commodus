@@ -142,6 +142,7 @@ helpers do
       net_pluses = 1
     elsif net_pluses < 0
       net_pluses = -1
+    end
 
     return net_pluses
   end
