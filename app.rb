@@ -9,6 +9,7 @@ REDIS_URI = ENV["REDISTOGO_URL"] || 'redis://localhost:6379'
 SECRET_TOKEN = ENV['SECRET_TOKEN']
 NEEDED_PLUS_ONES = 2
 PLUS_ONE_COMMENT = ':+1:'
+NEG_ONE_COMMENT = ':-1:'
 
 # Setup our clients
 before do
@@ -37,7 +38,7 @@ post '/hooks' do
   # A webhook has been received from Github
   case request.env['HTTP_X_GITHUB_EVENT']
   when "pull_request"
-    if @payload["action"] == "opened"
+    if @payload["action"] == "opened" || @payload["action"] == "synchronize"
       process_opened_pull_request(@payload["pull_request"])
     elsif @payload["action"] == "closed"
       process_closed_pull_request(@payload["pull_request"])
@@ -58,7 +59,7 @@ helpers do
     pr_number = pull_request['number'].to_s
     commit_hash = pull_request['head']['sha'].to_s
 
-    @redis.set(pr_name + ":" + pr_number + ":" + commit_hash, 0)
+    @redis.hset(pr_name + ":" + pr_number, commit_hash, 0)
 
     # Set the PR status to be pending
     @client.create_status(
@@ -80,7 +81,7 @@ helpers do
     current_commit_hash = pull_request['head']['sha'].to_s
 
     # Delete the PR from the redis store
-    @redis.del(pr_name + ":" + pr_number + ":" + current_commit_hash)
+    @redis.del(pr_name + ":" + pr_number)
     return 200
   end
 
@@ -92,7 +93,7 @@ helpers do
     pull_request = @client.pull_request(pr_name, pr_number)
     current_commit_hash = pull_request['head']['sha'].to_s
 
-    plus_ones = @redis.get(pr_name + ":" + pr_number + ":" + current_commit_hash)
+    plus_ones = @redis.hget(pr_name + ":" + pr_number, current_commit_hash)
 
     # Ensure that a key actually exists
     if !plus_ones.nil?
@@ -100,7 +101,11 @@ helpers do
       if plus_ones.to_i + 1 < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
         plus_ones = plus_ones.to_i + plus_ones_to_add
-        @redis.set(pr_name + ":" + pr_number + ":" + current_commit_hash, plus_ones)
+
+        if plus_ones < 0
+          plus_ones = 0
+
+        @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
         @client.create_status(
           pr_name,
           current_commit_hash,
@@ -122,8 +127,6 @@ helpers do
             'context' => 'robinpowered/commodus'
           }
         )
-        # Delete the lingering store
-        @redis.del(pr_name + ":" + pr_number + ":" + current_commit_hash)
         return 200
       end
     end
@@ -131,10 +134,10 @@ helpers do
 
   # Simply parse the comment for plus ones
   def parse_comment_body(comment_body)
-    if comment_body.include? PLUS_ONE_COMMENT
-      return 1
-    end
-    return 0
+    net_pluses = comment_body.scan('/' + PLUS_ONE_COMMENT + '/').count
+    net_pluses = net_pluses - comment_body.scan('/' + NEG_ONE_COMMENT + '/').count
+
+    return net_pluses
   end
 
   # Ensure the delivered webhook is from Github
