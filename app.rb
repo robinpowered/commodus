@@ -8,7 +8,7 @@ ACCESS_TOKEN = ENV['ACCESS_TOKEN']
 REDIS_URI = ENV["REDISTOGO_URL"] || 'redis://localhost:6379'
 SECRET_TOKEN = ENV['SECRET_TOKEN']
 NEEDED_PLUS_ONES = 2
-PLUS_ONE_COMMENT = 'LGTM :+1:'
+PLUS_ONE_COMMENT = ':+1:'
 
 # Setup our clients
 before do
