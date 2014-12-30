@@ -26,7 +26,7 @@ post '/hooks' do
   payload_body = request.body.read
 
   # Verify our signature is coming from Github
-  verify_signature(payload_body)
+  #verify_signature(payload_body)
 
   @payload = JSON.parse(payload_body)
 
@@ -137,6 +137,11 @@ helpers do
   def parse_comment_body(comment_body)
     net_pluses = comment_body.scan('/' + PLUS_ONE_COMMENT + '/').count
     net_pluses = net_pluses - comment_body.scan('/' + NEG_ONE_COMMENT + '/').count
+
+    if net_pluses > 0
+      net_pluses = 1
+    elsif net_pluses < 0
+      net_pluses = -1
 
     return net_pluses
   end
