@@ -54,11 +54,16 @@ helpers do
 
   # A pull request has been opened for a particular repo
   def process_opened_pull_request(pull_request)
-    @redis.set(pull_request['base']['repo']['full_name'].to_s + ":" + pull_request['number'].to_s, 0)
+    pr_name = pull_request['base']['repo']['full_name'].to_s
+    pr_number = pull_request['number'].to_s
+    commit_hash = pull_request['head']['sha'].to_s
+
+    @redis.set(pr_name + ":" + pr_number + ":" + commit_hash, 0)
+
     # Set the PR status to be pending
     @client.create_status(
-      pull_request['base']['repo']['full_name'],
-      pull_request['head']['sha'],
+      pr_name,
+      commit_hash,
       'pending',
       {
         'description' => 'Commodus: Required plus ones (0/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
@@ -70,25 +75,35 @@ helpers do
 
   # A pull request has been closed
   def process_closed_pull_request(pull_request)
+    pr_name = pull_request['base']['repo']['full_name'].to_s
+    pr_number = pull_request['number'].to_s
+    current_commit_hash = pull_request['head']['sha'].to_s
+
     # Delete the PR from the redis store
-    @redis.del(pull_request['base']['repo']['full_name'].to_s + ":" + pull_request['number'].to_s)
+    @redis.del(pr_name + ":" + pr_number + ":" + current_commit_hash)
     return 200
   end
 
   # An issue comment has been reported
   def process_created_issue_comment(issue_comment_payload)
-    plus_ones = @redis.get(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s)
+    pr_name = issue_comment_payload['repository']['full_name'].to_s
+    pr_number = issue_comment_payload['issue']['number'].to_s
 
+    pull_request = @client.pull_request(pr_name, pr_number)
+    current_commit_hash = pull_request['head']['sha'].to_s
+
+    plus_ones = @redis.get(pr_name + ":" + pr_number + ":" + current_commit_hash)
+
+    # Ensure that a key actually exists
     if !plus_ones.nil?
-      pull_request = @client.pull_request(issue_comment_payload['repository']['full_name'], issue_comment_payload['issue']['number'])
       # The :+1: threshold still hasn't been reached, store the incremented value
       if plus_ones.to_i + 1 < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
         plus_ones = plus_ones.to_i + plus_ones_to_add
-        @redis.set(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s, plus_ones)
+        @redis.set(pr_name + ":" + pr_number + ":" + current_commit_hash, plus_ones)
         @client.create_status(
-          pull_request['base']['repo']['full_name'],
-          pull_request['head']['sha'],
+          pr_name,
+          current_commit_hash,
           'pending',
           {
             'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
@@ -99,8 +114,8 @@ helpers do
       else
         # Set commit status to sucessful
         @client.create_status(
-          pull_request['base']['repo']['full_name'],
-          pull_request['head']['sha'],
+          pr_name,
+          current_commit_hash,
           'success',
           {
             'description' => 'Commodus: Required plus ones (' + NEEDED_PLUS_ONES.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
@@ -108,7 +123,7 @@ helpers do
           }
         )
         # Delete the lingering store
-        @redis.del(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s)
+        @redis.del(pr_name + ":" + pr_number + ":" + current_commit_hash)
         return 200
       end
     end
