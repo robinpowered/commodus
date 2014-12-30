@@ -8,7 +8,8 @@ ACCESS_TOKEN = ENV['ACCESS_TOKEN']
 REDIS_URI = ENV["REDISTOGO_URL"] || 'redis://localhost:6379'
 SECRET_TOKEN = ENV['SECRET_TOKEN']
 NEEDED_PLUS_ONES = 2
-PLUS_ONE_COMMENT = 'LGTM :+1:'
+PLUS_ONE_COMMENT = ':+1:'
+NEG_ONE_COMMENT = ':-1:'
 
 # Setup our clients
 before do
@@ -37,7 +38,7 @@ post '/hooks' do
   # A webhook has been received from Github
   case request.env['HTTP_X_GITHUB_EVENT']
   when "pull_request"
-    if @payload["action"] == "opened"
+    if @payload["action"] == "opened" || @payload["action"] == "synchronize"
       process_opened_pull_request(@payload["pull_request"])
     elsif @payload["action"] == "closed"
       process_closed_pull_request(@payload["pull_request"])
@@ -54,11 +55,16 @@ helpers do
 
   # A pull request has been opened for a particular repo
   def process_opened_pull_request(pull_request)
-    @redis.set(pull_request['base']['repo']['full_name'].to_s + ":" + pull_request['number'].to_s, 0)
+    pr_name = pull_request['base']['repo']['full_name'].to_s
+    pr_number = pull_request['number'].to_s
+    commit_hash = pull_request['head']['sha'].to_s
+
+    @redis.hset(pr_name + ":" + pr_number, commit_hash, 0)
+
     # Set the PR status to be pending
     @client.create_status(
-      pull_request['base']['repo']['full_name'],
-      pull_request['head']['sha'],
+      pr_name,
+      commit_hash,
       'pending',
       {
         'description' => 'Commodus: Required plus ones (0/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
@@ -70,25 +76,40 @@ helpers do
 
   # A pull request has been closed
   def process_closed_pull_request(pull_request)
+    pr_name = pull_request['base']['repo']['full_name'].to_s
+    pr_number = pull_request['number'].to_s
+    current_commit_hash = pull_request['head']['sha'].to_s
+
     # Delete the PR from the redis store
-    @redis.del(pull_request['base']['repo']['full_name'].to_s + ":" + pull_request['number'].to_s)
+    @redis.del(pr_name + ":" + pr_number)
     return 200
   end
 
   # An issue comment has been reported
   def process_created_issue_comment(issue_comment_payload)
-    plus_ones = @redis.get(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s)
+    pr_name = issue_comment_payload['repository']['full_name'].to_s
+    pr_number = issue_comment_payload['issue']['number'].to_s
 
+    pull_request = @client.pull_request(pr_name, pr_number)
+    current_commit_hash = pull_request['head']['sha'].to_s
+
+    plus_ones = @redis.hget(pr_name + ":" + pr_number, current_commit_hash)
+
+    # Ensure that a key actually exists
     if !plus_ones.nil?
-      pull_request = @client.pull_request(issue_comment_payload['repository']['full_name'], issue_comment_payload['issue']['number'])
       # The :+1: threshold still hasn't been reached, store the incremented value
-      if plus_ones.to_i + 1 < NEEDED_PLUS_ONES
+      if plus_ones.to_i < NEEDED_PLUS_ONES
         plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
         plus_ones = plus_ones.to_i + plus_ones_to_add
-        @redis.set(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s, plus_ones)
+
+        if plus_ones < 0
+          plus_ones = 0
+        end
+
+        @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
         @client.create_status(
-          pull_request['base']['repo']['full_name'],
-          pull_request['head']['sha'],
+          pr_name,
+          current_commit_hash,
           'pending',
           {
             'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
@@ -99,16 +120,14 @@ helpers do
       else
         # Set commit status to sucessful
         @client.create_status(
-          pull_request['base']['repo']['full_name'],
-          pull_request['head']['sha'],
+          pr_name,
+          current_commit_hash,
           'success',
           {
             'description' => 'Commodus: Required plus ones (' + NEEDED_PLUS_ONES.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
             'context' => 'robinpowered/commodus'
           }
         )
-        # Delete the lingering store
-        @redis.del(issue_comment_payload['repository']['full_name'].to_s + ":" + issue_comment_payload['issue']['number'].to_s)
         return 200
       end
     end
@@ -116,10 +135,16 @@ helpers do
 
   # Simply parse the comment for plus ones
   def parse_comment_body(comment_body)
-    if comment_body.include? PLUS_ONE_COMMENT
-      return 1
+    net_pluses = comment_body.scan(PLUS_ONE_COMMENT).count
+    net_pluses = net_pluses - comment_body.scan(NEG_ONE_COMMENT).count
+
+    if net_pluses > 0
+      net_pluses = 1
+    elsif net_pluses < 0
+      net_pluses = -1
     end
-    return 0
+
+    return net_pluses
   end
 
   # Ensure the delivered webhook is from Github
