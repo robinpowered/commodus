@@ -104,6 +104,7 @@ helpers do
 
         if plus_ones < 0
           plus_ones = 0
+        end
 
         @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
         @client.create_status(
