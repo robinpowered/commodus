@@ -13,4 +13,6 @@ Setup a personal access token with `repo` scope with `export ACCESS_TOKEN=token`
 
 Setup a Github webhook on your repo/organization that points to `https://yourserver.herokuapp.com/hooks` with `pull_request` and `issue_comment` feeds. Make sure to set your `SECRET_TOKEN` env variable.
 
-By default, Commodus will look for comments in the open PR for a `LGTM :+1:`
+By default, Commodus will look for comments in the open PR for a `:+1:` or a `:-1:` and calculate the net change per comment.
+
+If you want to change the default number of :+1:s needed for a repository set the `required_plus_ones` POST parameter in your webhook.
