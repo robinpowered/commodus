@@ -97,16 +97,34 @@ helpers do
 
     # Ensure that a key actually exists
     if !plus_ones.nil?
-      # The :+1: threshold still hasn't been reached, store the incremented value
-      if plus_ones.to_i < NEEDED_PLUS_ONES
-        plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
-        plus_ones = plus_ones.to_i + plus_ones_to_add
+      plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
 
-        if plus_ones < 0
-          plus_ones = 0
-        end
+      # If there is no net change
+      if plus_ones_to_add === 0
+        return 200
+      end
 
-        @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
+      plus_ones = plus_ones.to_i + plus_ones_to_add
+
+      # Ensure the count isn't negative
+      if plus_ones < 0
+        plus_ones = 0
+      end
+
+      @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
+
+      if plus_ones >= NEEDED_PLUS_ONES
+        # Set commit status to sucessful
+        @client.create_status(
+          pr_name,
+          current_commit_hash,
+          'success',
+          {
+            'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
+            'context' => 'robinpowered/commodus'
+          }
+        )
+      else
         @client.create_status(
           pr_name,
           current_commit_hash,
@@ -116,21 +134,10 @@ helpers do
             'context' => 'robinpowered/commodus'
           }
         )
-        return 200
-      else
-        # Set commit status to sucessful
-        @client.create_status(
-          pr_name,
-          current_commit_hash,
-          'success',
-          {
-            'description' => 'Commodus: Required plus ones (' + NEEDED_PLUS_ONES.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
-            'context' => 'robinpowered/commodus'
-          }
-        )
-        return 200
       end
     end
+
+    return 200
   end
 
   # Simply parse the comment for plus ones
