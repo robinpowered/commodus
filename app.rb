@@ -129,6 +129,11 @@ helpers do
         plus_ones = 0
       end
 
+      # Update authors list
+      if !authors.include?(comment_user)
+        authors.push(comment_user)
+      end
+
       payload_to_store = {
         :plus_one_count => plus_ones,
         :authors => authors,
