@@ -58,6 +58,14 @@ helpers do
     pr_name = pull_request['base']['repo']['full_name'].to_s
     pr_number = pull_request['number'].to_s
     commit_hash = pull_request['head']['sha'].to_s
+    creator = pull_request['base']['user']['login']
+
+    # Initialize the dataset
+    payload_to_store = {
+      :plus_one_count => 0,
+      :authors => [],
+      :creator => creator,
+    }
 
     @redis.hset(pr_name + ":" + pr_number, commit_hash, 0)
 
@@ -93,10 +101,16 @@ helpers do
     pull_request = @client.pull_request(pr_name, pr_number)
     current_commit_hash = pull_request['head']['sha'].to_s
 
-    plus_ones = @redis.hget(pr_name + ":" + pr_number, current_commit_hash)
+    # Grab the stored payload
+    stored_payload_value = @redis.hget(pr_name + ":" + pr_number, current_commit_hash)
 
     # Ensure that a key actually exists
-    if !plus_ones.nil?
+    if !stored_payload_value.nil?
+      stored_payload = JSON.parse(stored_payload_value)
+      plus_ones = stored_payload['plus_one_count'] || 0
+      authors = stored_payload['authors'] || []
+      creator = stored_payload['creator'] || ''
+
       plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
 
       # If there is no net change
@@ -111,7 +125,14 @@ helpers do
         plus_ones = 0
       end
 
-      @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
+      payload_to_store = {
+        :plus_one_count => plus_ones,
+        :authors => authors,
+        :creator => creator,
+      }
+
+      # Store the new payload data
+      @redis.hset(pr_name + ":" + pr_number, current_commit_hash, payload_to_store.to_json)
 
       if plus_ones >= NEEDED_PLUS_ONES
         # Set commit status to sucessful
