@@ -58,7 +58,7 @@ helpers do
     pr_name = pull_request['base']['repo']['full_name'].to_s
     pr_number = pull_request['number'].to_s
     commit_hash = pull_request['head']['sha'].to_s
-    creator = pull_request['base']['user']['login'].to_s
+    creator = pull_request['base']['user']['id'].to_s
 
     # Initialize the dataset
     payload_to_store = {
@@ -111,7 +111,7 @@ helpers do
       authors = stored_payload['authors']
       creator = stored_payload['creator'].to_s
 
-      comment_user = issue_comment_payload['comment']['user']['login'].to_s
+      comment_user = issue_comment_payload['comment']['user']['id'].to_s
       # Check if the commenting user is the creator or has already commented
       is_comment_user_creator_or_author = authors.include?(comment_user) || creator === comment_user
 
