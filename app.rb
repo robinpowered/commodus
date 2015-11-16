@@ -57,6 +57,7 @@ helpers do
   def process_opened_pull_request(pull_request)
     pr_name = pull_request['base']['repo']['full_name'].to_s
     pr_number = pull_request['number'].to_s
+    pr_key = pr_name + ":" + pr_number
     commit_hash = pull_request['head']['sha'].to_s
     creator = pull_request['base']['user']['id'].to_s
 
@@ -67,7 +68,7 @@ helpers do
       :creator => creator,
     }
 
-    @redis.hset(pr_name + ":" + pr_number, commit_hash, payload_to_store.to_json)
+    @redis.hset(pr_key, commit_hash, payload_to_store.to_json)
 
     # Set the PR status to be pending
     @client.create_status(
@@ -86,10 +87,11 @@ helpers do
   def process_closed_pull_request(pull_request)
     pr_name = pull_request['base']['repo']['full_name'].to_s
     pr_number = pull_request['number'].to_s
+    pr_key = pr_name + ":" + pr_number
     current_commit_hash = pull_request['head']['sha'].to_s
 
     # Delete the PR from the redis store
-    @redis.del(pr_name + ":" + pr_number)
+    @redis.del(pr_key)
     return 200
   end
 
@@ -97,12 +99,13 @@ helpers do
   def process_created_issue_comment(issue_comment_payload)
     pr_name = issue_comment_payload['repository']['full_name'].to_s
     pr_number = issue_comment_payload['issue']['number'].to_s
+    pr_key = pr_name + ":" + pr_number
 
     pull_request = @client.pull_request(pr_name, pr_number)
     current_commit_hash = pull_request['head']['sha'].to_s
 
     # Grab the stored payload
-    stored_payload_value = @redis.hget(pr_name + ":" + pr_number, current_commit_hash)
+    stored_payload_value = @redis.hget(pr_key, current_commit_hash)
 
     # Ensure that a key actually exists
     if !stored_payload_value.nil?
@@ -141,7 +144,7 @@ helpers do
       }
 
       # Store the new payload data
-      @redis.hset(pr_name + ":" + pr_number, current_commit_hash, payload_to_store.to_json)
+      @redis.hset(pr_key, current_commit_hash, payload_to_store.to_json)
 
       if plus_ones >= NEEDED_PLUS_ONES
         # Set commit status to sucessful
