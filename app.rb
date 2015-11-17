@@ -32,7 +32,7 @@ post '/hooks' do
 
   # If $required_plus_ones has been specified, change the default
   if params['required_plus_ones']
-    NEEDED_PLUS_ONES ||= params['required_plus_ones']
+    NEEDED_PLUS_ONES = params['required_plus_ones']
   end
 
   # A webhook has been received from Github
