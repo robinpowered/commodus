@@ -175,8 +175,15 @@ helpers do
 
   # Simply parse the comment for plus ones
   def parse_comment_body(comment_body)
-    net_pluses = comment_body.scan(PLUS_ONE_COMMENT).count
-    net_pluses = net_pluses - comment_body.scan(NEG_ONE_COMMENT).count
+    # Ignore common markdown prefixes
+    comment_body = comment_body.gsub(/^(>\s|\#{1,4}\s|\*\s|\+\s|-\s).+/s, '')
+
+    plus_one_regex_pattern = Regexp.new('(' + Regexp.escape(PLUS_ONE_COMMENT) + ')')
+    neg_one_regex_pattern = Regexp.new('(' + Regexp.escape(NEG_ONE_COMMENT) + ')')
+
+    total_plus = comment_body.scan(plus_one_regex_pattern).count
+    total_neg = comment_body.scan(neg_one_regex_pattern).count
+    net_pluses = total_plus - total_neg
 
     if net_pluses > 0
       net_pluses = 1
