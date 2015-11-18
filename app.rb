@@ -57,9 +57,18 @@ helpers do
   def process_opened_pull_request(pull_request)
     pr_name = pull_request['base']['repo']['full_name'].to_s
     pr_number = pull_request['number'].to_s
+    pr_key = pr_name + ":" + pr_number
     commit_hash = pull_request['head']['sha'].to_s
+    creator = pull_request['base']['user']['id'].to_s
 
-    @redis.hset(pr_name + ":" + pr_number, commit_hash, 0)
+    # Initialize the dataset
+    payload_to_store = {
+      :plus_one_count => 0,
+      :authors => [],
+      :creator => creator,
+    }
+
+    @redis.hset(pr_key, commit_hash, payload_to_store.to_json)
 
     # Set the PR status to be pending
     @client.create_status(
@@ -78,10 +87,11 @@ helpers do
   def process_closed_pull_request(pull_request)
     pr_name = pull_request['base']['repo']['full_name'].to_s
     pr_number = pull_request['number'].to_s
+    pr_key = pr_name + ":" + pr_number
     current_commit_hash = pull_request['head']['sha'].to_s
 
     # Delete the PR from the redis store
-    @redis.del(pr_name + ":" + pr_number)
+    @redis.del(pr_key)
     return 200
   end
 
@@ -89,29 +99,52 @@ helpers do
   def process_created_issue_comment(issue_comment_payload)
     pr_name = issue_comment_payload['repository']['full_name'].to_s
     pr_number = issue_comment_payload['issue']['number'].to_s
+    pr_key = pr_name + ":" + pr_number
 
     pull_request = @client.pull_request(pr_name, pr_number)
     current_commit_hash = pull_request['head']['sha'].to_s
 
-    plus_ones = @redis.hget(pr_name + ":" + pr_number, current_commit_hash)
+    # Grab the stored payload
+    stored_payload_value = @redis.hget(pr_key, current_commit_hash)
 
     # Ensure that a key actually exists
-    if !plus_ones.nil?
-      plus_ones_to_add = parse_comment_body(issue_comment_payload['comment']['body'])
+    if !stored_payload_value.nil?
+      stored_payload = JSON.parse(stored_payload_value)
+      plus_ones = stored_payload['plus_one_count'].to_i
+      authors = stored_payload['authors']
+      creator = stored_payload['creator'].to_s
+
+      comment_user = issue_comment_payload['comment']['user']['id'].to_s
+      # Check if the commenting user is the creator or has already commented
+      is_comment_user_creator_or_author = authors.include?(comment_user) || creator === comment_user
+
+      plus_ones_to_add = is_comment_user_creator_or_author ? 0 : parse_comment_body(issue_comment_payload['comment']['body'])
 
       # If there is no net change
       if plus_ones_to_add === 0
         return 200
       end
 
-      plus_ones = plus_ones.to_i + plus_ones_to_add
+      plus_ones = plus_ones + plus_ones_to_add
 
       # Ensure the count isn't negative
       if plus_ones < 0
         plus_ones = 0
       end
 
-      @redis.hset(pr_name + ":" + pr_number, current_commit_hash, plus_ones)
+      # Update authors list
+      if !authors.include?(comment_user)
+        authors.push(comment_user)
+      end
+
+      payload_to_store = {
+        :plus_one_count => plus_ones,
+        :authors => authors,
+        :creator => creator,
+      }
+
+      # Store the new payload data
+      @redis.hset(pr_key, current_commit_hash, payload_to_store.to_json)
 
       if plus_ones >= NEEDED_PLUS_ONES
         # Set commit status to sucessful
