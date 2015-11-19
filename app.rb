@@ -31,8 +31,8 @@ post '/hooks' do
   @payload = JSON.parse(payload_body)
 
   # If $required_plus_ones has been specified, change the default
-  if params['required_plus_ones']
-    NEEDED_PLUS_ONES = params['required_plus_ones']
+  if params['required_plus_ones'].to_i > 0
+    NEEDED_PLUS_ONES = params['required_plus_ones'].to_i
   end
 
   # A webhook has been received from Github
