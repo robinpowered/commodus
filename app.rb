@@ -168,6 +168,8 @@ helpers do
           }
         )
       end
+    else
+      return 404
     end
 
     return 200
