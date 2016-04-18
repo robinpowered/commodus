@@ -8,8 +8,8 @@ ACCESS_TOKEN = ENV['ACCESS_TOKEN']
 REDIS_URI = ENV["REDISTOGO_URL"] || 'redis://localhost:6379'
 SECRET_TOKEN = ENV['SECRET_TOKEN']
 NEEDED_PLUS_ONES = 2
-PLUS_ONE_COMMENT = ':+1:'
-NEG_ONE_COMMENT = ':-1:'
+PLUS_ONE_COMMENTS = [":+1:", "\u{1F44D}"]
+NEG_ONE_COMMENTS = [":-1:", "\u{1F44E}"]
 
 # Setup our clients
 before do
