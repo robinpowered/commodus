@@ -8,8 +8,8 @@ ACCESS_TOKEN = ENV['ACCESS_TOKEN']
 REDIS_URI = ENV["REDISTOGO_URL"] || 'redis://localhost:6379'
 SECRET_TOKEN = ENV['SECRET_TOKEN']
 NEEDED_PLUS_ONES = 2
-PLUS_ONE_COMMENT = ':+1:'
-NEG_ONE_COMMENT = ':-1:'
+PLUS_ONE_COMMENTS = [":+1:", "\u{1F44D}"]
+NEG_ONE_COMMENTS = [":-1:", "\u{1F44E}"]
 
 # Setup our clients
 before do
@@ -168,6 +168,8 @@ helpers do
           }
         )
       end
+    else
+      return 404
     end
 
     return 200
@@ -176,10 +178,10 @@ helpers do
   # Simply parse the comment for plus ones
   def parse_comment_body(comment_body)
     # Ignore common markdown prefixes
-    comment_body = comment_body.gsub(/^(>\s|\#{1,4}\s|\*\s|\+\s|-\s).+/s, '')
+    comment_body = comment_body.gsub(/^(>\s|\#{1,4}\s|\*\s|\+\s|-\s).+/u, '')
 
-    plus_one_regex_pattern = Regexp.new('(' + Regexp.escape(PLUS_ONE_COMMENT) + ')')
-    neg_one_regex_pattern = Regexp.new('(' + Regexp.escape(NEG_ONE_COMMENT) + ')')
+    plus_one_regex_pattern = Regexp.new('(' + PLUS_ONE_COMMENTS.map{|item| Regexp.escape(item)}.join('|') + ')')
+    neg_one_regex_pattern = Regexp.new('(' + NEG_ONE_COMMENTS.map{|item| Regexp.escape(item)}.join('|') + ')')
 
     total_plus = comment_body.scan(plus_one_regex_pattern).count
     total_neg = comment_body.scan(neg_one_regex_pattern).count
