@@ -169,27 +169,20 @@ helpers do
       @redis.hset(pr_key, current_commit_hash, payload_to_store.to_json)
 
       if plus_ones >= NEEDED_PLUS_ONES
-        # Set commit status to sucessful
-        @client.create_status(
-          pr_name,
-          current_commit_hash,
-          'success',
-          {
-            'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has been reached!',
-            'context' => 'robinpowered/commodus'
-          }
-        )
+        status = 'success'
       else
-        @client.create_status(
-          pr_name,
-          current_commit_hash,
-          'pending',
-          {
-            'description' => 'Commodus: Required plus ones (' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') has yet to be reached.',
-            'context' => 'robinpowered/commodus'
-          }
-        )
+        status = 'pending'
       end
+
+      @client.create_status(
+        pr_name,
+        current_commit_hash,
+        status,
+        {
+          'description' => '(' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') required approvals.',
+          'context' => 'robinpowered/commodus'
+        }
+      ) 
     else
       return 404
     end
