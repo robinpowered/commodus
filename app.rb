@@ -117,7 +117,7 @@ helpers do
     pr_name = review_payload['repository']['full_name'].to_s
     pr_number = review_payload['pull_request']['number'].to_s
     comment_user = review_payload['review']['user']['id'].to_s
-    approvals = (review_payload['review']['state'] == "approved") ? 1 : 0
+    approvals = evaluate_review_state(review_payload['review']['state'])
     current_commit_hash = review_payload['pull_request']['head']['sha'].to_s
 
     submit_status(pr_name, pr_number, current_commit_hash, comment_user, approvals)
@@ -195,6 +195,19 @@ helpers do
     end
 
     return 200
+  end
+
+  # Evaluates the PR review state
+  def evaluate_review_state(state)
+    net_pluses = 0
+
+    if state == "approved"
+      net_pluses = 1
+    elsif state == "changes_requested"
+      net_pluses = -1
+    end
+
+    return net_pluses
   end
 
   # Simply parse the comment for plus ones
