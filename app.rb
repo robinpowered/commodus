@@ -47,6 +47,10 @@ post '/hooks' do
     if @payload["action"] == "created"
       process_created_issue_comment(@payload)
     end
+  when "pull_request_review"
+    if @payload["action"] == "submitted"
+      process_created_review(@payload)
+    end
   end
 end
 
@@ -99,10 +103,29 @@ helpers do
   def process_created_issue_comment(issue_comment_payload)
     pr_name = issue_comment_payload['repository']['full_name'].to_s
     pr_number = issue_comment_payload['issue']['number'].to_s
-    pr_key = pr_name + ":" + pr_number
+    comment_user = issue_comment_payload['comment']['user']['id'].to_s
+    approvals = parse_comment_body(issue_comment_payload['comment']['body'])
 
     pull_request = @client.pull_request(pr_name, pr_number)
     current_commit_hash = pull_request['head']['sha'].to_s
+
+    submit_status(pr_name, pr_number, current_commit_hash, comment_user, approvals)
+  end
+
+  # A PR review has been reported
+  def process_created_review(review_payload)
+    pr_name = review_payload['repository']['full_name'].to_s
+    pr_number = review_payload['pull_request']['number'].to_s
+    comment_user = review_payload['review']['user']['id'].to_s
+    approvals = (review_payload['review']['state'] == "approved") ? 1 : 0
+    current_commit_hash = review_payload['pull_request']['head']['sha'].to_s
+
+    submit_status(pr_name, pr_number, current_commit_hash, comment_user, approvals)
+  end
+
+  # Evaluates and submits a status for the commodus review
+  def submit_status(pr_name, pr_number, current_commit_hash, comment_user, approvals)
+    pr_key = pr_name + ":" + pr_number
 
     # Grab the stored payload
     stored_payload_value = @redis.hget(pr_key, current_commit_hash)
@@ -114,11 +137,10 @@ helpers do
       authors = stored_payload['authors']
       creator = stored_payload['creator'].to_s
 
-      comment_user = issue_comment_payload['comment']['user']['id'].to_s
       # Check if the commenting user is the creator or has already commented
       is_comment_user_creator_or_author = authors.include?(comment_user) || creator === comment_user
 
-      plus_ones_to_add = is_comment_user_creator_or_author ? 0 : parse_comment_body(issue_comment_payload['comment']['body'])
+      plus_ones_to_add = is_comment_user_creator_or_author ? 0 : approvals
 
       # If there is no net change
       if plus_ones_to_add === 0
