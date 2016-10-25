@@ -80,7 +80,7 @@ helpers do
       commit_hash,
       'pending',
       {
-        'description' => '(' + plus_ones.to_s + '/' + NEEDED_PLUS_ONES.to_s + ') required approvals.',
+        'description' => '(0/' + NEEDED_PLUS_ONES.to_s + ') required approvals.',
         'context' => 'robinpowered/commodus'
       }
     )
